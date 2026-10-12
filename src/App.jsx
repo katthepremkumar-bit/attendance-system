@@ -83,11 +83,13 @@ useEffect(() => {
 
   initializeAuth();
 
-  return () => {
-    active = false;
-    subscription.unsubscribe();
-  };
+
+return () => {
+  active = false;
+  subscription.unsubscribe();
+};
 }, []);
+
   useEffect(() => {
     if (!session?.user) return;
     let cancelled = false;
