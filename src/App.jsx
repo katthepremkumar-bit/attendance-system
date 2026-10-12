@@ -89,13 +89,6 @@ useEffect(() => {
   };
 }, []);
 
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, next) => {
-      setSession(next);
-      if (!next) { setProfile(null); setSubjects([]); }
-    });
-    return () => listener.subscription.unsubscribe();
-  }, []);
-
   useEffect(() => {
     if (!session?.user) return;
     let cancelled = false;
