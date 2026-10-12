@@ -39,13 +39,56 @@ function App() {
   const [adminUsers, setAdminUsers] = useState([]);
   const [classes, setClasses] = useState([]);
 
-  useEffect(() => {
-    if (!supabase) { setBooting(false); return; }
-    supabase.auth.getSession().then(({ data, error }) => {
-      if (error) setError(error.message);
-      setSession(data?.session || null);
-      setBooting(false);
-    });
+  
+useEffect(() => {
+  if (!supabase) {
+    setBooting(false);
+    return;
+  }
+
+  let active = true;
+
+  async function initializeAuth() {
+    try {
+      const { data, error } = await supabase.auth.getSession();
+
+      if (error) throw error;
+
+      if (active) {
+        setSession(data?.session || null);
+      }
+    } catch (err) {
+      if (active) {
+        setError(err.message || "Unable to restore login session.");
+      }
+    } finally {
+      if (active) {
+        setBooting(false);
+      }
+    }
+  }
+
+  const {
+    data: { subscription },
+  } = supabase.auth.onAuthStateChange((_event, session) => {
+    if (active) {
+      setSession(session);
+
+      if (!session) {
+        setProfile(null);
+        setSubjects([]);
+      }
+    }
+  });
+
+  initializeAuth();
+
+  return () => {
+    active = false;
+    subscription.unsubscribe();
+  };
+}, []);
+
     const { data: listener } = supabase.auth.onAuthStateChange((_event, next) => {
       setSession(next);
       if (!next) { setProfile(null); setSubjects([]); }
