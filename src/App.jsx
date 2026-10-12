@@ -88,7 +88,6 @@ useEffect(() => {
     subscription.unsubscribe();
   };
 }, []);
-
   useEffect(() => {
     if (!session?.user) return;
     let cancelled = false;
