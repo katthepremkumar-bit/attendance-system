@@ -125,15 +125,25 @@ function App() {
   const totalClasses = currentSubjects.reduce((n,s)=>n+s.total,0);
   const overall = pct(totalPresent,totalClasses);
 
-  async function signIn() {
-    setError('');
-    if (!supabase) { setError('Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your .env file, then restart the app.'); return; }
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider:'google',
-      options:{ redirectTo: window.location.origin }
-    });
-    if (error) setError(error.message);
+
+async function signIn() {
+  setError('');
+
+  if (!supabase) {
+    setError('Supabase is not configured.');
+    return;
   }
+
+  const { error } = await supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: {
+      redirectTo: 'https://attendance-system-szth.vercel.app/'
+    }
+  });
+
+  if (error) setError(error.message);
+}
+
   async function signOut() {
     if (supabase) await supabase.auth.signOut();
     setProfile(null); setSession(null); setActive('overview');
