@@ -40,6 +40,7 @@ function App() {
   const [classes, setClasses] = useState([]);
 
   
+
 useEffect(() => {
   if (!supabase) {
     setBooting(false);
@@ -48,47 +49,40 @@ useEffect(() => {
 
   let active = true;
 
-  async function initializeAuth() {
-    try {
-      const { data, error } = await supabase.auth.getSession();
-
-      if (error) throw error;
-
-      if (active) {
-        setSession(data?.session || null);
-      }
-    } catch (err) {
-      if (active) {
-        setError(err.message || "Unable to restore login session.");
-      }
-    } finally {
-      if (active) {
-        setBooting(false);
-      }
-    }
-  }
-
   const {
     data: { subscription },
-  } = supabase.auth.onAuthStateChange((_event, session) => {
-    if (active) {
-      setSession(session);
+  } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    if (!active) return;
 
-      if (!session) {
-        setProfile(null);
-        setSubjects([]);
-      }
+    setSession(nextSession);
+
+    if (!nextSession) {
+      setProfile(null);
+      setSubjects([]);
     }
   });
 
-  initializeAuth();
+  supabase.auth.getSession().then(({ data, error }) => {
+    if (!active) return;
 
+    if (error) {
+      setError(error.message);
+    }
 
-return () => {
-  active = false;
-  subscription.unsubscribe();
-};
+    setSession(data?.session || null);
+    setBooting(false);
+  }).catch((err) => {
+    if (!active) return;
+    setError(err.message || "Unable to load login session.");
+    setBooting(false);
+  });
+
+  return () => {
+    active = false;
+    subscription.unsubscribe();
+  };
 }, []);
+
 
   useEffect(() => {
     if (!session?.user) return;
