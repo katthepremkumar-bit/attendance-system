@@ -90,7 +90,7 @@ useEffect(() => {
     (async () => {
       const user = session.user;
       const { data, error: profileError } = await supabase.from('profiles')
-        .select('id, full_name, email, role, student_id, class_id')
+        .select('id, full_name, email, role')
         .eq('id', user.id).maybeSingle();
       if (cancelled) return;
       if (profileError) { setError(profileError.message); return; }
