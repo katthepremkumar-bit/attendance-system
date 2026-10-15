@@ -86,6 +86,12 @@ useEffect(() => {
   };
 }, []);
 
+  
+useEffect(() => {
+  if (profile?.role === 'admin' && active === 'reports') {
+    loadAdminReports();
+  }
+}, [profile, active]);
 
   useEffect(() => {
     if (!session?.user) return;
@@ -149,6 +155,33 @@ useEffect(() => {
       }
     }
   }
+
+  
+async function loadAdminReports() {
+  if (!supabase) return;
+
+  const { data, error } = await supabase
+    .from('attendance')
+    .select(`
+      attendance_date,
+      status,
+      students (
+        id,
+        roll_number,
+        profiles ( full_name, email )
+      ),
+      subjects ( name, code )
+    `)
+    .order('attendance_date', { ascending: false });
+
+  if (error) {
+    setError(error.message);
+    return;
+  }
+
+  setAdminReports(data || []);
+}
+
 
   const [studentStats, setStudentStats] = useState([]);
   const currentSubjects = useMemo(() => {
@@ -216,7 +249,7 @@ async function signIn() {
     ? [{id:'overview',label:'Overview',icon:LayoutDashboard},{id:'subjects',label:'My subjects',icon:BookOpen},{id:'history',label:'Attendance history',icon:CalendarDays}]
     : role === 'teacher'
     ? [{id:'overview',label:'Overview',icon:LayoutDashboard},{id:'mark',label:'Mark attendance',icon:ClipboardCheck},{id:'reports',label:'Class reports',icon:Activity}]
-    : [{id:'overview',label:'Overview',icon:LayoutDashboard},{id:'users',label:'Manage users',icon:Users},{id:'subjects',label:'Subjects & classes',icon:BookOpen}];
+    : [{id:'overview',label:'Overview',icon:LayoutDashboard},{id:'users',label:'Manage users',icon:Users},{id:'subjects',label:'Subjects & classes',icon:BookOpen},{ id: 'reports', label: 'Attendance Reports', icon: Activity }];
 
   return <div className="app-shell">
     <aside className={`sidebar ${mobileMenu?'open':''}`}>
