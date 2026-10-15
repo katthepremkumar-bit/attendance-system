@@ -272,6 +272,59 @@ async function signIn() {
         {active==='mark'&&role==='teacher'&&<div className="panel"><div className="panel-head"><div><h2>Take attendance</h2><p>Choose the class session, then mark each student.</p></div><span className="soft-badge">Teacher workspace</span></div><div className="filters"><label>Subject<select value={selectedSubject} onChange={e=>setSelectedSubject(e.target.value)}><option value="">Select subject</option>{subjects.map(s=><option key={s.id} value={s.id}>{s.name} ({s.code})</option>)}</select></label><label>Session date<input type="date" value={selectedDate} onChange={e=>setSelectedDate(e.target.value)}/></label><button className="btn-secondary" onClick={loadRegister}>Load roster</button></div><div className="table-wrap"><table><thead><tr><th>Student</th><th>Roll number</th><th>Attendance status</th></tr></thead><tbody>{roster.map(s=><tr key={s.id}><td><div className="student-cell"><div className="avatar">{initials(s.full_name)}</div><div><b>{s.full_name}</b><span>{s.email}</span></div></div></td><td>{s.roll_number}</td><td><div className="attendance-toggle"><button className={attendance[s.id]==='present'?'chosen present':''} onClick={()=>setAttendance(a=>({...a,[s.id]:'present'}))}><Check size={15}/> Present</button><button className={attendance[s.id]==='absent'?'chosen absent':''} onClick={()=>setAttendance(a=>({...a,[s.id]:'absent'}))}><X size={15}/> Absent</button></div></td></tr>)}</tbody></table>{!roster.length&&<Empty text="No students found. Add student records and assign a class first."/>}</div><div className="panel-footer"><span>{Object.keys(attendance).length} students in register</span><button className="btn-primary" disabled={saving||!selectedSubject||!Object.keys(attendance).length} onClick={saveAttendance}>{saving?'Saving…':'Save attendance'}</button></div></div>}
         {active==='reports'&&role==='teacher'&&<Subjects subjects={subjects.map(s=>({...s,present:0,total:0}))} emptyLabel="Attendance summaries will appear after attendance records are entered."/>}
         {active==='users'&&role==='admin'&&<div className="panel"><div className="panel-head"><div><h2>People & permissions</h2><p>Review accounts and set their portal roles.</p></div><span className="soft-badge">{adminUsers.length} accounts</span></div><div className="search-box"><Search size={17}/><input placeholder="Search by name or email…" value={search} onChange={e=>setSearch(e.target.value)}/></div><div className="table-wrap"><table><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Change role</th></tr></thead><tbody>{adminUsers.filter(u=>`${u.full_name} ${u.email}`.toLowerCase().includes(search.toLowerCase())).map(u=><tr key={u.id}><td><div className="student-cell"><div className="avatar">{initials(u.full_name||u.email)}</div><b>{u.full_name||'Unnamed user'}</b></div></td><td>{u.email}</td><td><span className={`role-label ${u.role}`}>{u.role}</span></td><td><select value={u.role} onChange={e=>changeRole(u,e.target.value)} disabled={u.email?.toLowerCase()===adminEmail}><option value="student">Student</option><option value="teacher">Teacher</option><option value="admin">Admin</option></select></td></tr>)}</tbody></table></div><div className="panel-footer"><span>Use role changes carefully; database RLS enforces permissions.</span></div></div>}
+         
+        {active==='reports'&&role==='admin'&&<div className="panel">
+          <div className="panel-head">
+            <div>
+              <h2>Attendance Reports</h2>
+              <p>View student attendance records across subjects.</p>
+            </div>
+            <span className="soft-badge">{adminReports.length} records</span>
+          </div>
+          <div className="search-box">
+            <Search size={17}/>
+            <input
+              placeholder="Search student, email, or subject..."
+              value={reportSearch}
+              onChange={e=>setReportSearch(e.target.value)}
+            />
+          </div>
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Student</th>
+                  <th>Roll number</th>
+                  <th>Subject</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {adminReports
+                  .filter(r => {
+                    const term = reportSearch.toLowerCase();
+                    return `${r.students?.profiles?.full_name || ''} ${r.students?.profiles?.email || ''} ${r.students?.roll_number || ''} ${r.subjects?.name || ''}`.toLowerCase().includes(term);
+                  })
+                  .map((r, i) => (
+                    <tr key={r.id || i}>
+                      <td>{r.attendance_date}</td>
+                      <td>{r.students?.profiles?.full_name || 'Unknown'}</td>
+                      <td>{r.students?.roll_number || '—'}</td>
+                      <td>{r.subjects?.name || 'Unknown'}</td>
+                      <td>
+                        <span className={`status-pill ${r.status==='present'?'ok':'low'}`}>
+                          {r.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+            {!adminReports.length&&<Empty text="No attendance records found."/>}
+          </div>
+        </div>}
+
         {active==='subjects'&&role==='admin'&&<div className="panel"><div className="panel-head"><div><h2>Subjects & classes</h2><p>Current subjects and class groups configured in Supabase.</p></div></div><div className="table-wrap"><table><thead><tr><th>Subject</th><th>Code</th><th>Class ID</th><th>Assigned teacher ID</th></tr></thead><tbody>{subjects.map(s=><tr key={s.id}><td>{s.name}</td><td>{s.code}</td><td>{s.class_id||'—'}</td><td>{s.teacher_id||'—'}</td></tr>)}</tbody></table>{!subjects.length&&<Empty text="No subjects yet. Add subjects in the Supabase subjects table."/>}</div></div>}
         <footer className="footer"><span>© {new Date().getFullYear()} Attendly</span><span><ShieldCheck size={14}/> Role-based access enabled</span></footer>
       </div>
