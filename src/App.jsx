@@ -228,18 +228,30 @@ async function saveStudentProfile() {
       return;
     }
     setProfileSaving(true); setError(''); setNotice('');
-    const { error: nameError } = await supabase.from('profiles').update({ full_name: profileName.trim() }).eq('id', profile.id);
-    if (nameError) { setError(nameError.message); setProfileSaving(false); return; }
-    const { data: existingStudent, error: lookupError } = await supabase.from('students').select('id').eq('profile_id', profile.id).maybeSingle();
+    const { data: updatedProfile, error: nameError } = await supabase.from('profiles')
+      .update({ full_name: profileName.trim() }).eq('id', profile.id)
+      .select('id, full_name, email, role').maybeSingle();
+    if (nameError || !updatedProfile) {
+      setError(nameError?.message || 'Your name could not be updated. Check the Supabase profiles UPDATE policy for the signed-in user.');
+      setProfileSaving(false); return;
+    }
+    const { data: existingStudent, error: lookupError } = await supabase.from('students')
+      .select('id').eq('profile_id', profile.id).maybeSingle();
     if (lookupError) { setError(lookupError.message); setProfileSaving(false); return; }
     const write = existingStudent
-      ? await supabase.from('students').update({ roll_number: profileRoll.trim(), class_id: profileClass }).eq('profile_id', profile.id)
-      : await supabase.from('students').insert({ profile_id: profile.id, roll_number: profileRoll.trim(), class_id: profileClass });
-    if (write.error) { setError(write.error.message); setProfileSaving(false); return; }
-    setProfile(prev => ({ ...prev, full_name: profileName.trim() }));
-    setNotice('Your student details have been saved.');
+      ? await supabase.from('students').update({ roll_number: profileRoll.trim(), class_id: profileClass })
+          .eq('profile_id', profile.id).select('id, roll_number, class_id').maybeSingle()
+      : await supabase.from('students').insert({ profile_id: profile.id, roll_number: profileRoll.trim(), class_id: profileClass })
+          .select('id, roll_number, class_id').maybeSingle();
+    if (write.error || !write.data) {
+      setError(write.error?.message || 'Your roll number/class could not be saved. Check the Supabase students INSERT/UPDATE policies and ensure the roll number is unique.');
+      setProfileSaving(false); return;
+    }
+    const freshProfile = { ...profile, ...updatedProfile };
+    setProfile(freshProfile);
+    await loadData(freshProfile);
+    setNotice('Your student details have been saved and refreshed.');
     setProfileSaving(false);
-    await loadData({ ...profile, full_name: profileName.trim() });
   }
 
   async function signIn() {
