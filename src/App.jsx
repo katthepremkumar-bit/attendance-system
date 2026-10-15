@@ -42,6 +42,10 @@ function App() {
 
   const [classes, setClasses] = useState([]);
   const [studentInfo, setStudentInfo] = useState(null);
+  const [profileName, setProfileName] = useState('');
+  const [profileRoll, setProfileRoll] = useState('');
+  const [profileClass, setProfileClass] = useState('');
+  const [profileSaving, setProfileSaving] = useState(false);
 
   
 
@@ -139,11 +143,17 @@ useEffect(() => {
       setClasses(classRows || []);
     }
     if (p.role === 'student') {
+      const { data: classRows, error: classError } = await supabase.from('classes').select('id, name, section, academic_year').order('name');
+      if (classError) setError(classError.message);
+      setClasses(classRows || []);
+      setProfileName(p.full_name || '');
       const { data: student, error: studentError } = await supabase.from('students')
         .select('id, roll_number, class_id, classes(name, section, academic_year)')
         .eq('profile_id', p.id).maybeSingle();
       if (studentError) setError(studentError.message);
       setStudentInfo(student || null);
+      setProfileRoll(student?.roll_number || '');
+      setProfileClass(student?.class_id || '');
       if (student) {
         const { data: records, error: aErr } = await supabase.from('attendance')
           .select('id, subject_id, attendance_date, status, subjects(name, code)')
@@ -199,7 +209,28 @@ async function loadAdminReports() {
   const overall = pct(totalPresent,totalClasses);
 
 
-async function signIn() {
+async function saveStudentProfile() {
+    if (!supabase || !profile?.id) return;
+    if (!profileName.trim() || !profileRoll.trim() || !profileClass) {
+      setError('Please enter your full name, roll number, and select your class/section.');
+      return;
+    }
+    setProfileSaving(true); setError(''); setNotice('');
+    const { error: nameError } = await supabase.from('profiles').update({ full_name: profileName.trim() }).eq('id', profile.id);
+    if (nameError) { setError(nameError.message); setProfileSaving(false); return; }
+    const { data: existingStudent, error: lookupError } = await supabase.from('students').select('id').eq('profile_id', profile.id).maybeSingle();
+    if (lookupError) { setError(lookupError.message); setProfileSaving(false); return; }
+    const write = existingStudent
+      ? await supabase.from('students').update({ roll_number: profileRoll.trim(), class_id: profileClass }).eq('profile_id', profile.id)
+      : await supabase.from('students').insert({ profile_id: profile.id, roll_number: profileRoll.trim(), class_id: profileClass });
+    if (write.error) { setError(write.error.message); setProfileSaving(false); return; }
+    setProfile(prev => ({ ...prev, full_name: profileName.trim() }));
+    setNotice('Your student details have been saved.');
+    setProfileSaving(false);
+    await loadData({ ...profile, full_name: profileName.trim() });
+  }
+
+  async function signIn() {
   setError('');
 
   if (!supabase) {
@@ -272,6 +303,7 @@ async function signIn() {
         <div className="welcome-row"><div><div className="eyebrow">{new Date().toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}</div><h1>{greeting(active,role)}</h1><p>{subtitle(active,role)}</p></div><div className="welcome-actions">{role==='teacher'&&<button className="btn-primary" onClick={()=>setActive('mark')}><ClipboardCheck size={17}/> Take attendance</button>}{role==='admin'&&<button className="btn-primary" onClick={()=>setActive('users')}><Users size={17}/> Manage users</button>}</div></div>
         {error&&<div className="alert error"><AlertCircle size={18}/><span>{error}</span><button onClick={()=>setError('')}><X size={16}/></button></div>}
         {notice&&<div className="alert success"><CheckCircle2 size={18}/><span>{notice}</span><button onClick={()=>setNotice('')}><X size={16}/></button></div>}
+        {role==='student'&&<div className="panel student-details-panel"><div className="panel-head"><div><h2>Student profile</h2><p>Enter or update your college details.</p></div><span className="soft-badge">Editable</span></div><div className="filters"><label>Full name<input type="text" value={profileName} onChange={e=>setProfileName(e.target.value)} placeholder="Enter your full name" /></label><label>Roll number<input type="text" value={profileRoll} onChange={e=>setProfileRoll(e.target.value)} placeholder="Enter your roll number" /></label><label>Class / Year and section<select value={profileClass} onChange={e=>setProfileClass(e.target.value)}><option value="">Select class / section</option>{classes.map(item=><option key={item.id} value={item.id}>{item.name}{item.section ? ` - Section ${item.section}` : ''}{item.academic_year ? ` (${item.academic_year})` : ''}</option>)}</select></label><button className="btn-primary" disabled={profileSaving} onClick={saveStudentProfile}>{profileSaving?'Saving…':'Save details'}</button></div>{!classes.length&&<p className="stat-sub">No classes are configured yet. Ask your admin to add your class and section first.</p>}</div>}
         {active==='overview'&&role==='student'&&<div className="panel student-details-panel"><div className="panel-head"><div><h2>My student details</h2><p>Your registered college information.</p></div><span className="soft-badge">Student profile</span></div><div className="stats-grid"><div className="stat-card"><div className="stat-label">Student name</div><div className="stat-value" style={{fontSize:'18px'}}>{profile?.full_name||'Not available'}</div></div><div className="stat-card"><div className="stat-label">Roll number</div><div className="stat-value" style={{fontSize:'18px'}}>{studentInfo?.roll_number||'Not assigned'}</div></div><div className="stat-card"><div className="stat-label">Section</div><div className="stat-value" style={{fontSize:'18px'}}>{studentInfo?.classes?.section||'Not assigned'}</div></div><div className="stat-card"><div className="stat-label">Class / Year</div><div className="stat-value" style={{fontSize:'18px'}}>{studentInfo?.classes?.name||'Not assigned'}</div><div className="stat-sub">{studentInfo?.classes?.academic_year||''}</div></div></div></div>}
         {active==='overview'&&<Overview role={role} profile={profile} subjects={currentSubjects} overall={overall} totalPresent={totalPresent} totalClasses={totalClasses} users={adminUsers} roster={roster} onNavigate={setActive}/>}
         {active==='subjects'&&role==='student'&&<Subjects subjects={currentSubjects}/>}
