@@ -160,11 +160,23 @@ useEffect(() => {
           .eq('student_id', student.id).order('attendance_date', { ascending:false });
         if (!aErr) {
           const grouped = {};
-          (records || []).forEach(r => {
-            const k = r.subject_id;
-            grouped[k] ||= { id:k, name:r.subjects?.name || 'Subject', code:r.subjects?.code || '', present:0,total:0,records:[] };
-            grouped[k].total++; if (r.status === 'present') grouped[k].present++;
-            grouped[k].records.push(r);
+          (subjectRows || [])
+            .filter(subject => !student.class_id || subject.class_id === student.class_id)
+            .forEach(subject => {
+              grouped[subject.id] = {
+                id: subject.id, name: subject.name, code: subject.code || '',
+                present: 0, total: 0, records: []
+              };
+            });
+          (records || []).forEach(record => {
+            const key = record.subject_id;
+            grouped[key] ||= {
+              id: key, name: record.subjects?.name || 'Subject',
+              code: record.subjects?.code || '', present: 0, total: 0, records: []
+            };
+            grouped[key].total++;
+            if (record.status === 'present') grouped[key].present++;
+            grouped[key].records.push(record);
           });
           setStudentStats(Object.values(grouped));
         } else setError(aErr.message);
@@ -201,7 +213,7 @@ async function loadAdminReports() {
 
   const [studentStats, setStudentStats] = useState([]);
   const currentSubjects = useMemo(() => {
-    if (role === 'student' && studentStats.length) return studentStats;
+    if (role === 'student') return studentStats;
     return demoSubjects;
   }, [role, studentStats]);
   const totalPresent = currentSubjects.reduce((n,s)=>n+s.present,0);
