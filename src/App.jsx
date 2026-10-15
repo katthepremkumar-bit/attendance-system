@@ -36,7 +36,10 @@ function App() {
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState('');
   const [search, setSearch] = useState('');
-  const [adminUsers, setAdminUsers] = useState([]);
+  const [adminUsers, setAdminUsers] = useState([]); 
+  const [adminReports, setAdminReports] = useState([]);
+  const [reportSearch, setReportSearch] = useState('');
+
   const [classes, setClasses] = useState([]);
 
   
