@@ -131,9 +131,13 @@ useEffect(() => {
     setSubjects(subjectRows || []);
     if (p.role === 'teacher' || p.role === 'admin') {
       const { data: studentRows, error: stErr } = await supabase.from('students')
-        .select('id, roll_number, class_id, profiles!students_profile_id_fkey(id, full_name, email)')
+        .select('id, roll_number, class_id, classes(name, section, academic_year), profiles!students_profile_id_fkey(id, full_name, email)')
         .order('roll_number');
-      if (!stErr) setRoster((studentRows || []).map(s => ({...s, full_name:s.profiles?.full_name || 'Student', email:s.profiles?.email || '', profile_id:s.profiles?.id })));
+      if (!stErr) setRoster((studentRows || []).map(s => ({
+        ...s, full_name: s.profiles?.full_name || 'Student', email: s.profiles?.email || '',
+        profile_id: s.profiles?.id, class_name: s.classes?.name || 'Not assigned',
+        section: s.classes?.section || '', academic_year: s.classes?.academic_year || ''
+      })));
       else setError(stErr.message);
     }
     if (p.role === 'admin') {
@@ -283,10 +287,21 @@ async function saveStudentProfile() {
   async function loadRegister() {
     if (!selectedSubject || !selectedDate || !supabase) return;
     const subject = subjects.find(s => s.id === selectedSubject);
-    const eligible = roster.filter(s => !subject?.class_id || s.class_id === subject.class_id);
+    const { data: studentRows, error: rosterError } = await supabase.from('students')
+      .select('id, roll_number, class_id, classes(name, section, academic_year), profiles!students_profile_id_fkey(id, full_name, email)')
+      .order('roll_number');
+    if (rosterError) { setError(rosterError.message); return; }
+    const latestRoster = (studentRows || []).map(s => ({
+      ...s, full_name: s.profiles?.full_name || 'Student', email: s.profiles?.email || '',
+      profile_id: s.profiles?.id, class_name: s.classes?.name || 'Not assigned',
+      section: s.classes?.section || '', academic_year: s.classes?.academic_year || ''
+    }));
+    setRoster(latestRoster);
+    const eligible = latestRoster.filter(s => !subject?.class_id || s.class_id === subject.class_id);
     setAttendance(Object.fromEntries(eligible.map(s => [s.id,'present'])));
-    const { data } = await supabase.from('attendance').select('student_id,status')
+    const { data, error: attendanceError } = await supabase.from('attendance').select('student_id,status')
       .eq('subject_id',selectedSubject).eq('attendance_date',selectedDate);
+    if (attendanceError) { setError(attendanceError.message); return; }
     if (data?.length) setAttendance(prev => ({...prev,...Object.fromEntries(data.map(a=>[a.student_id,a.status]))}));
   }
   async function saveAttendance() {
@@ -336,7 +351,7 @@ async function saveStudentProfile() {
         {active==='overview'&&<Overview role={role} profile={profile} subjects={currentSubjects} overall={overall} totalPresent={totalPresent} totalClasses={totalClasses} users={adminUsers} roster={roster} onNavigate={setActive}/>}
         {active==='subjects'&&role==='student'&&<Subjects subjects={currentSubjects}/>}
         {active==='history'&&<History stats={studentStats}/>}
-        {active==='mark'&&role==='teacher'&&<div className="panel"><div className="panel-head"><div><h2>Take attendance</h2><p>Choose the class session, then mark each student.</p></div><span className="soft-badge">Teacher workspace</span></div><div className="filters"><label>Subject<select value={selectedSubject} onChange={e=>setSelectedSubject(e.target.value)}><option value="">Select subject</option>{subjects.map(s=><option key={s.id} value={s.id}>{s.name} ({s.code})</option>)}</select></label><label>Session date<input type="date" value={selectedDate} onChange={e=>setSelectedDate(e.target.value)}/></label><button className="btn-secondary" onClick={loadRegister}>Load roster</button></div><div className="table-wrap"><table><thead><tr><th>Student</th><th>Roll number</th><th>Attendance status</th></tr></thead><tbody>{roster.map(s=><tr key={s.id}><td><div className="student-cell"><div className="avatar">{initials(s.full_name)}</div><div><b>{s.full_name}</b><span>{s.email}</span></div></div></td><td>{s.roll_number}</td><td><div className="attendance-toggle"><button className={attendance[s.id]==='present'?'chosen present':''} onClick={()=>setAttendance(a=>({...a,[s.id]:'present'}))}><Check size={15}/> Present</button><button className={attendance[s.id]==='absent'?'chosen absent':''} onClick={()=>setAttendance(a=>({...a,[s.id]:'absent'}))}><X size={15}/> Absent</button></div></td></tr>)}</tbody></table>{!roster.length&&<Empty text="No students found. Add student records and assign a class first."/>}</div><div className="panel-footer"><span>{Object.keys(attendance).length} students in register</span><button className="btn-primary" disabled={saving||!selectedSubject||!Object.keys(attendance).length} onClick={saveAttendance}>{saving?'Saving…':'Save attendance'}</button></div></div>}
+        {active==='mark'&&role==='teacher'&&<div className="panel"><div className="panel-head"><div><h2>Take attendance</h2><p>Choose the class session, then mark each student.</p></div><span className="soft-badge">Teacher workspace</span></div><div className="filters"><label>Subject<select value={selectedSubject} onChange={e=>setSelectedSubject(e.target.value)}><option value="">Select subject</option>{subjects.map(s=><option key={s.id} value={s.id}>{s.name} ({s.code})</option>)}</select></label><label>Session date<input type="date" value={selectedDate} onChange={e=>setSelectedDate(e.target.value)}/></label><button className="btn-secondary" onClick={loadRegister}>Load roster</button></div><div className="table-wrap"><table><thead><tr><th>Student</th><th>Roll number</th><th>Class / Section</th><th>Attendance status</th></tr></thead><tbody>{roster.filter(s=>{const subject=subjects.find(item=>item.id===selectedSubject);return !subject?.class_id||s.class_id===subject.class_id;}).map(s=><tr key={s.id}><td><div className="student-cell"><div className="avatar">{initials(s.full_name)}</div><div><b>{s.full_name}</b><span>{s.email}</span></div></div></td><td>{s.roll_number}</td><td>{s.class_name}{s.section?' - '+s.section:''}{s.academic_year?' ('+s.academic_year+')':''}</td><td><div className="attendance-toggle"><button className={attendance[s.id]==='present'?'chosen present':''} onClick={()=>setAttendance(a=>({...a,[s.id]:'present'}))}><Check size={15}/> Present</button><button className={attendance[s.id]==='absent'?'chosen absent':''} onClick={()=>setAttendance(a=>({...a,[s.id]:'absent'}))}><X size={15}/> Absent</button></div></td></tr>)}</tbody></table>{!roster.length&&<Empty text="No students found. Add student records and assign a class first."/>}</div><div className="panel-footer"><span>{Object.keys(attendance).length} students in register</span><button className="btn-primary" disabled={saving||!selectedSubject||!Object.keys(attendance).length} onClick={saveAttendance}>{saving?'Saving…':'Save attendance'}</button></div></div>}
         {active==='reports'&&role==='teacher'&&<Subjects subjects={subjects.map(s=>({...s,present:0,total:0}))} emptyLabel="Attendance summaries will appear after attendance records are entered."/>}
         {active==='users'&&role==='admin'&&<div className="panel"><div className="panel-head"><div><h2>People & permissions</h2><p>Review accounts and set their portal roles.</p></div><span className="soft-badge">{adminUsers.length} accounts</span></div><div className="search-box"><Search size={17}/><input placeholder="Search by name or email…" value={search} onChange={e=>setSearch(e.target.value)}/></div><div className="table-wrap"><table><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Change role</th></tr></thead><tbody>{adminUsers.filter(u=>`${u.full_name} ${u.email}`.toLowerCase().includes(search.toLowerCase())).map(u=><tr key={u.id}><td><div className="student-cell"><div className="avatar">{initials(u.full_name||u.email)}</div><b>{u.full_name||'Unnamed user'}</b></div></td><td>{u.email}</td><td><span className={`role-label ${u.role}`}>{u.role}</span></td><td><select value={u.role} onChange={e=>changeRole(u,e.target.value)} disabled={u.email?.toLowerCase()===adminEmail}><option value="student">Student</option><option value="teacher">Teacher</option><option value="admin">Admin</option></select></td></tr>)}</tbody></table></div><div className="panel-footer"><span>Use role changes carefully; database RLS enforces permissions.</span></div></div>}
          
