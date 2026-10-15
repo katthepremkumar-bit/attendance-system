@@ -41,6 +41,7 @@ function App() {
   const [reportSearch, setReportSearch] = useState('');
 
   const [classes, setClasses] = useState([]);
+  const [studentInfo, setStudentInfo] = useState(null);
 
   
 
@@ -61,6 +62,7 @@ useEffect(() => {
 
     if (!nextSession) {
       setProfile(null);
+      setStudentInfo(null);
       setSubjects([]);
     }
   });
@@ -137,7 +139,11 @@ useEffect(() => {
       setClasses(classRows || []);
     }
     if (p.role === 'student') {
-      const { data: student } = await supabase.from('students').select('id').eq('profile_id', p.id).maybeSingle();
+      const { data: student, error: studentError } = await supabase.from('students')
+        .select('id, roll_number, class_id, classes(name, section, academic_year)')
+        .eq('profile_id', p.id).maybeSingle();
+      if (studentError) setError(studentError.message);
+      setStudentInfo(student || null);
       if (student) {
         const { data: records, error: aErr } = await supabase.from('attendance')
           .select('id, subject_id, attendance_date, status, subjects(name, code)')
@@ -266,6 +272,7 @@ async function signIn() {
         <div className="welcome-row"><div><div className="eyebrow">{new Date().toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}</div><h1>{greeting(active,role)}</h1><p>{subtitle(active,role)}</p></div><div className="welcome-actions">{role==='teacher'&&<button className="btn-primary" onClick={()=>setActive('mark')}><ClipboardCheck size={17}/> Take attendance</button>}{role==='admin'&&<button className="btn-primary" onClick={()=>setActive('users')}><Users size={17}/> Manage users</button>}</div></div>
         {error&&<div className="alert error"><AlertCircle size={18}/><span>{error}</span><button onClick={()=>setError('')}><X size={16}/></button></div>}
         {notice&&<div className="alert success"><CheckCircle2 size={18}/><span>{notice}</span><button onClick={()=>setNotice('')}><X size={16}/></button></div>}
+        {active==='overview'&&role==='student'&&<div className="panel student-details-panel"><div className="panel-head"><div><h2>My student details</h2><p>Your registered college information.</p></div><span className="soft-badge">Student profile</span></div><div className="stats-grid"><div className="stat-card"><div className="stat-label">Student name</div><div className="stat-value" style={{fontSize:'18px'}}>{profile?.full_name||'Not available'}</div></div><div className="stat-card"><div className="stat-label">Roll number</div><div className="stat-value" style={{fontSize:'18px'}}>{studentInfo?.roll_number||'Not assigned'}</div></div><div className="stat-card"><div className="stat-label">Section</div><div className="stat-value" style={{fontSize:'18px'}}>{studentInfo?.classes?.section||'Not assigned'}</div></div><div className="stat-card"><div className="stat-label">Class / Year</div><div className="stat-value" style={{fontSize:'18px'}}>{studentInfo?.classes?.name||'Not assigned'}</div><div className="stat-sub">{studentInfo?.classes?.academic_year||''}</div></div></div></div>}
         {active==='overview'&&<Overview role={role} profile={profile} subjects={currentSubjects} overall={overall} totalPresent={totalPresent} totalClasses={totalClasses} users={adminUsers} roster={roster} onNavigate={setActive}/>}
         {active==='subjects'&&role==='student'&&<Subjects subjects={currentSubjects}/>}
         {active==='history'&&<History stats={studentStats}/>}
