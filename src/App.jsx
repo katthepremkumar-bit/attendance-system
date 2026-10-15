@@ -240,11 +240,15 @@ async function saveStudentProfile() {
     if (lookupError) { setError(lookupError.message); setProfileSaving(false); return; }
     const write = existingStudent
       ? await supabase.from('students').update({ roll_number: profileRoll.trim(), class_id: profileClass })
-          .eq('profile_id', profile.id).select('id, roll_number, class_id').maybeSingle()
+          .eq('id', existingStudent.id).select('id, roll_number, class_id').maybeSingle()
       : await supabase.from('students').insert({ profile_id: profile.id, roll_number: profileRoll.trim(), class_id: profileClass })
           .select('id, roll_number, class_id').maybeSingle();
     if (write.error || !write.data) {
-      setError(write.error?.message || 'Your roll number/class could not be saved. Check the Supabase students INSERT/UPDATE policies and ensure the roll number is unique.');
+      setError(write.error?.message || 'Supabase did not return an updated student row. Check the students UPDATE policy for the signed-in user, and ensure the new roll number is not already used by another student.');
+      setProfileSaving(false); return;
+    }
+    if (write.data.roll_number !== profileRoll.trim() || write.data.class_id !== profileClass) {
+      setError('Supabase returned different student details than the ones entered. Please check the students table and its update policy.');
       setProfileSaving(false); return;
     }
     const freshProfile = { ...profile, ...updatedProfile };
