@@ -6,3 +6,43 @@
 @media(max-width:1100px){.sidebar{width:225px}.main{margin-left:225px}.topbar{padding:0 25px}.page{padding:28px 25px 18px}.stats-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.content-grid{grid-template-columns:minmax(0,1.4fr) minmax(220px,.8fr)}}
 @media(max-width:800px){.sidebar{transform:translateX(-100%);transition:transform .2s ease;width:260px;box-shadow:0 10px 30px #10151012}.sidebar.open{transform:translateX(0)}.mobile-close{display:grid;place-items:center;margin-left:auto;border:0;background:transparent;color:#7e8397}.scrim{display:block;position:fixed;inset:0;background:#1e21464d;border:0;z-index:15}.main{margin-left:0}.menu-button{display:grid;place-items:center;border:0;background:transparent;color:#646a80;padding:4px}.topbar{height:64px;padding:0 18px;gap:12px}.breadcrumb{margin-right:auto}.page{padding:25px 18px}.content-grid{grid-template-columns:1fr}.right-column{grid-template-columns:1fr 1fr}.login-layout{grid-template-columns:1fr}.login-art{display:none}.login-side{min-height:100vh}.login-card{max-width:410px}.welcome-row h1{font-size:24px}}
 @media(max-width:520px){.top-actions{gap:8px}.role-chip{padding:7px 9px;font-size:10px}.breadcrumb{font-size:10px}.breadcrumb span{padding:0 5px}.page{padding:22px 13px}.welcome-row{align-items:flex-start}.welcome-row h1{font-size:22px}.welcome-row p{max-width:270px;line-height:1.6}.welcome-actions .btn-primary{font-size:0;padding:10px}.welcome-actions .btn-primary svg{width:18px;height:18px}.stats-grid{gap:10px}.stat-card{padding:14px;min-height:137px}.stat-value{font-size:22px}.stat-label{font-size:10px}.content-grid{gap:12px}.right-column{grid-template-columns:1fr}.panel-head{padding:17px 15px 14px}.subject-list{padding:0 15px 10px}.subject-row{gap:9px}.subject-icon{width:32px;height:32px}.subject-name{gap:5px}.subject-name b{font-size:10px}.percent{font-size:12px;min-width:38px}.footer{font-size:9px}.filters{padding:0 15px 15px}.filters label,.filters select,.filters input{width:100%}.filters select,.filters input{min-width:0}.filters .btn-secondary{width:100%}.panel-footer{padding:13px 15px}.table-wrap table{min-width:620px}th,td{padding:12px 14px}.attendance-card{padding:19px}.login-side{padding:28px 21px}.login-card h2{font-size:24px}.login-symbol{margin-bottom:24px}}
+
+
+/* Readability pass: white text on Attendly's black-and-green interface */
+:root { color: #ffffff; --ink: #ffffff; --muted: #c4d0c7; --line: #263a2c; }
+body, .app-shell, .main, .page { color: #ffffff; }
+.sidebar, .topbar, .stat-card, .panel, .tip-card, .login-layout, .profile-row {
+  background-color: #0b0f0c;
+  color: #ffffff;
+}
+.brand b, .nav-item, .workspace-label, .help-card b, .profile-meta b,
+.admin-note b, .breadcrumb b, .role-chip, .welcome-row h1, .welcome-row p,
+.stat-label, .stat-value, .stat-sub, .panel-head h2, .panel-head p,
+.subject-name b, .subject-name span, .subject-meta, .percent, .attendance-card h3,
+.big-percent, .mini-stat b, .tip-head, .tip-card p, .activity-item b,
+.activity-item span, .footer, th, td, .student-cell b, .student-cell span,
+.filters label, .empty-state, .empty-state b, .empty-state p, .login-card h2,
+.login-card > p, .login-benefits div, .login-foot, .breadcrumb, .eyebrow {
+  color: #ffffff !important;
+}
+.nav-item { color: #e5eee7; }
+.nav-item.active, .text-button, .tip-card button, .login-card .eyebrow { color: #4ade80 !important; }
+.brand span, .help-card p, .profile-meta span, .admin-note span,
+.subject-name span, .subject-meta, .panel-head p, .stat-sub, .welcome-row p,
+.breadcrumb, .footer, .student-cell span, .filters label, .login-card > p,
+.login-benefits div, .login-foot { color: #c4d0c7 !important; }
+.btn-primary { background: #16a34a; color: #ffffff; border-color: #16a34a; }
+.btn-secondary { background: #111a13; color: #ffffff; border-color: #35523b; }
+.filters select, .filters input, td select, .search-box input {
+  background: #111a13; color: #ffffff; border-color: #35523b;
+}
+.google-btn { background: #111a13; color: #ffffff; border-color: #35523b; }
+th { background: #111a13; border-color: #263a2c; }
+td, .subject-row, .activity-item, .panel-footer { border-color: #263a2c; }
+.status-pill.ok, .role-label.admin { color: #86efac; }
+.status-pill.low { color: #fde68a; }
+.role-label.teacher, .role-label.student { color: #ffffff; }
+.attendance-card { background: linear-gradient(145deg, #14532d, #16a34a); }
+.attendance-card > p, .small-label, .mini-stat { color: #ffffff; }
+.progress-track.large { background: #ffffff44; }
+.progress-track.large .progress-fill { background: #ffffff; }
