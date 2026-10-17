@@ -99,6 +99,30 @@ useEffect(() => {
   }
 }, [profile, active]);
 
+  // Keep the teacher roster in sync as students register or update their details.
+  useEffect(() => {
+    if (!supabase || profile?.role !== 'teacher') return;
+
+    let disposed = false;
+    const refresh = async () => {
+      if (!disposed) await refreshRosterOnly();
+    };
+
+    refresh();
+    const channel = supabase.channel('attendly-teacher-roster')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'students' }, refresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, refresh)
+      .subscribe();
+
+    // Polling is a fallback if Supabase Realtime is not enabled for these tables.
+    const timer = window.setInterval(refresh, 15000);
+    return () => {
+      disposed = true;
+      window.clearInterval(timer);
+      supabase.removeChannel(channel);
+    };
+  }, [profile?.role, profile?.id]);
+
   useEffect(() => {
     if (!session?.user) return;
     let cancelled = false;
@@ -284,6 +308,37 @@ async function saveStudentProfile() {
     if (supabase) await supabase.auth.signOut();
     setProfile(null); setSession(null); setActive('overview');
   }
+  async function refreshRosterOnly() {
+    if (!supabase || profile?.role !== 'teacher') return;
+    const { data: studentRows, error: rosterError } = await supabase.from('students')
+      .select('id, roll_number, class_id, classes(name, section, academic_year), profiles!students_profile_id_fkey(id, full_name, email)')
+      .order('roll_number');
+    if (rosterError) {
+      setError(rosterError.message);
+      return;
+    }
+    const latestRoster = (studentRows || []).map(s => ({
+      ...s, full_name: s.profiles?.full_name || 'Student', email: s.profiles?.email || '',
+      profile_id: s.profiles?.id, class_name: s.classes?.name || 'Not assigned',
+      section: s.classes?.section || '', academic_year: s.classes?.academic_year || ''
+    }));
+    setRoster(latestRoster);
+
+    // Give newly eligible students a default status without overwriting marks
+    // the teacher has already changed during the current session.
+    const subject = subjects.find(s => s.id === selectedSubject);
+    const eligibleIds = latestRoster
+      .filter(s => !subject?.class_id || s.class_id === subject.class_id)
+      .map(s => s.id);
+    setAttendance(previous => {
+      const next = { ...previous };
+      eligibleIds.forEach(id => {
+        if (!next[id]) next[id] = 'present';
+      });
+      return next;
+    });
+  }
+
   async function loadRegister() {
     if (!selectedSubject || !selectedDate || !supabase) return;
     const subject = subjects.find(s => s.id === selectedSubject);
