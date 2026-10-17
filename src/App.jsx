@@ -374,7 +374,41 @@ async function saveStudentProfile() {
   async function changeRole(person, nextRole) {
     const { error } = await supabase.from('profiles').update({role:nextRole}).eq('id',person.id);
     if (error) setError(error.message);
-    else { setNotice(`Updated ${person.email} to ${nextRole}.`); loadData(); }
+    else { setNotice(`Updated ${person.email} to ${nextRole}.`); await loadData(); }
+  }
+
+  async function removePortalAccess(person) {
+    if (!supabase || profile?.role !== 'admin') return;
+    const isStudent = person.role === 'student';
+    const action = isStudent
+      ? 'remove this student from their class roster? Their Google login and existing attendance history will be kept.'
+      : 'remove this teacher from the teacher portal? Their Google login will be kept, their role will become student, and their teaching assignments will be unassigned.';
+    if (!window.confirm(`Are you sure you want to ${action}`)) return;
+    setError('');
+    setNotice('');
+    if (isStudent) {
+      // Unassign from the class instead of deleting the student row, preserving attendance history.
+      const { error: studentError } = await supabase.from('students')
+        .update({ class_id: null }).eq('profile_id', person.id);
+      if (studentError) { setError(studentError.message); return; }
+      setNotice(`Removed ${person.email} from the class roster. Their login and attendance history are preserved.`);
+    } else if (person.role === 'teacher') {
+      const { data: teacherRow, error: lookupError } = await supabase.from('teachers')
+        .select('id').eq('profile_id', person.id).maybeSingle();
+      if (lookupError) { setError(lookupError.message); return; }
+      if (teacherRow) {
+        const { error: teacherError } = await supabase.from('teachers').delete().eq('id', teacherRow.id);
+        if (teacherError) { setError(teacherError.message); return; }
+      }
+      const { error: roleError } = await supabase.from('profiles')
+        .update({ role: 'student' }).eq('id', person.id);
+      if (roleError) { setError(roleError.message); return; }
+      setNotice(`Removed teacher access for ${person.email}. Their Google login remains active.`);
+    } else {
+      setError('Only student or teacher access can be removed here.');
+      return;
+    }
+    await loadData();
   }
 
   if (booting) return <div className="loading"><div className="spinner"/>Loading Attendly…</div>;
@@ -408,7 +442,7 @@ async function saveStudentProfile() {
         {active==='history'&&<History stats={studentStats}/>}
         {active==='mark'&&role==='teacher'&&<div className="panel"><div className="panel-head"><div><h2>Take attendance</h2><p>Choose the class session, then mark each student.</p></div><span className="soft-badge">Teacher workspace</span></div><div className="filters"><label>Subject<select value={selectedSubject} onChange={e=>setSelectedSubject(e.target.value)}><option value="">Select subject</option>{subjects.map(s=><option key={s.id} value={s.id}>{s.name} ({s.code})</option>)}</select></label><label>Session date<input type="date" value={selectedDate} onChange={e=>setSelectedDate(e.target.value)}/></label><button className="btn-secondary" onClick={loadRegister}>Load roster</button></div><div className="table-wrap"><table><thead><tr><th>Student</th><th>Roll number</th><th>Class / Section</th><th>Attendance status</th></tr></thead><tbody>{roster.filter(s=>{const subject=subjects.find(item=>item.id===selectedSubject);return !subject?.class_id||s.class_id===subject.class_id;}).map(s=><tr key={s.id}><td><div className="student-cell"><div className="avatar">{initials(s.full_name)}</div><div><b>{s.full_name}</b><span>{s.email}</span></div></div></td><td>{s.roll_number}</td><td>{s.class_name}{s.section?' - '+s.section:''}{s.academic_year?' ('+s.academic_year+')':''}</td><td><div className="attendance-toggle"><button className={attendance[s.id]==='present'?'chosen present':''} onClick={()=>setAttendance(a=>({...a,[s.id]:'present'}))}><Check size={15}/> Present</button><button className={attendance[s.id]==='absent'?'chosen absent':''} onClick={()=>setAttendance(a=>({...a,[s.id]:'absent'}))}><X size={15}/> Absent</button></div></td></tr>)}</tbody></table>{!roster.length&&<Empty text="No students found. Add student records and assign a class first."/>}</div><div className="panel-footer"><span>{Object.keys(attendance).length} students in register</span><button className="btn-primary" disabled={saving||!selectedSubject||!Object.keys(attendance).length} onClick={saveAttendance}>{saving?'Saving…':'Save attendance'}</button></div></div>}
         {active==='reports'&&role==='teacher'&&<Subjects subjects={subjects.map(s=>({...s,present:0,total:0}))} emptyLabel="Attendance summaries will appear after attendance records are entered."/>}
-        {active==='users'&&role==='admin'&&<div className="panel"><div className="panel-head"><div><h2>People & permissions</h2><p>Review accounts and set their portal roles.</p></div><span className="soft-badge">{adminUsers.length} accounts</span></div><div className="search-box"><Search size={17}/><input placeholder="Search by name or email…" value={search} onChange={e=>setSearch(e.target.value)}/></div><div className="table-wrap"><table><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Change role</th></tr></thead><tbody>{adminUsers.filter(u=>`${u.full_name} ${u.email}`.toLowerCase().includes(search.toLowerCase())).map(u=><tr key={u.id}><td><div className="student-cell"><div className="avatar">{initials(u.full_name||u.email)}</div><b>{u.full_name||'Unnamed user'}</b></div></td><td>{u.email}</td><td><span className={`role-label ${u.role}`}>{u.role}</span></td><td><select value={u.role} onChange={e=>changeRole(u,e.target.value)} disabled={u.email?.toLowerCase()===adminEmail}><option value="student">Student</option><option value="teacher">Teacher</option><option value="admin">Admin</option></select></td></tr>)}</tbody></table></div><div className="panel-footer"><span>Use role changes carefully; database RLS enforces permissions.</span></div></div>}
+        {active==='users'&&role==='admin'&&<div className="panel"><div className="panel-head"><div><h2>People & permissions</h2><p>Review accounts and set their portal roles.</p></div><span className="soft-badge">{adminUsers.length} accounts</span></div><div className="search-box"><Search size={17}/><input placeholder="Search by name or email…" value={search} onChange={e=>setSearch(e.target.value)}/></div><div className="table-wrap"><table><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Change role</th><th>Remove access</th></tr></thead><tbody>{adminUsers.filter(u=>`${u.full_name} ${u.email}`.toLowerCase().includes(search.toLowerCase())).map(u=><tr key={u.id}><td><div className="student-cell"><div className="avatar">{initials(u.full_name||u.email)}</div><b>{u.full_name||'Unnamed user'}</b></div></td><td>{u.email}</td><td><span className={`role-label ${u.role}`}>{u.role}</span></td><td><select value={u.role} onChange={e=>changeRole(u,e.target.value)} disabled={u.email?.toLowerCase()===adminEmail}><option value="student">Student</option><option value="teacher">Teacher</option><option value="admin">Admin</option></select></td><td>{u.email?.toLowerCase()!==adminEmail && (u.role==='student'||u.role==='teacher') ? <button className="btn-remove" onClick={()=>removePortalAccess(u)}>Remove</button> : '—'}</td></tr>)}</tbody></table></div><div className="panel-footer"><span>Students are unassigned from class; teacher access is removed. Login accounts and student attendance history are kept.</span></div></div>}
          
         {active==='reports'&&role==='admin'&&<div className="panel">
           <div className="panel-head">
